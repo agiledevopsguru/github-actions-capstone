@@ -1,39 +1,40 @@
 
-name: Reusable Build and Test
+name: Reusable — Build & Test
 
 on:
   workflow_call:
     inputs:
       node_version:
-        description: Node.js version
-        required: false
+        description: 'Node.js version to use'
         type: string
+        required: false
         default: '22'
 
       run_tests:
-        description: Run application tests
-        required: false
+        description: 'Whether to run application tests'
         type: boolean
+        required: false
         default: true
 
     outputs:
       test_result:
-        description: Test execution result
+        description: 'Result of the test execution'
         value: ${{ jobs.build-test.outputs.test_result }}
 
 jobs:
   build-test:
+    name: Build & Test (Node ${{ inputs.node_version }})
     runs-on: ubuntu-latest
 
     outputs:
-      test_result: ${{ steps.result.outputs.test_result }}
+      test_result: ${{ steps.set-result.outputs.test_result }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js ${{ inputs.node_version }}
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node_version }}
           cache: npm
@@ -42,23 +43,27 @@ jobs:
         id: install
         run: npm ci
 
-      - name: Run tests
-        id: test
+      - name: Run application tests
+        id: run-tests
         if: ${{ inputs.run_tests }}
         run: npm test
 
       - name: Set test result
-        id: result
+        id: set-result
         if: always()
         env:
           INSTALL_RESULT: ${{ steps.install.outcome }}
-          TEST_RESULT: ${{ steps.test.outcome }}
+          TEST_RESULT: ${{ steps.run-tests.outcome }}
+          RUN_TESTS: ${{ inputs.run_tests }}
         run: |
-          if [ "$INSTALL_RESULT" = "success" ] && \
-             { [ "$TEST_RESULT" = "success" ] || \
-               [ "$TEST_RESULT" = "skipped" ]; }; then
+          if [[ "$INSTALL_RESULT" == "success" ]] && \
+             { [[ "$TEST_RESULT" == "success" ]] || \
+               [[ "$RUN_TESTS" == "false" && "$TEST_RESULT" == "skipped" ]]; }; then
+
             echo "test_result=passed" >> "$GITHUB_OUTPUT"
+            echo "Build and test completed successfully."
+
           else
             echo "test_result=failed" >> "$GITHUB_OUTPUT"
+            echo "Build or test failed."
           fi
-
