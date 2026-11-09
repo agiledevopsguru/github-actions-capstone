@@ -3,61 +3,63 @@ name: Scheduled Health Check
 
 on:
   schedule:
+    # Runs every 12 hours
     - cron: '0 */12 * * *'
 
   workflow_dispatch:
 
+env:
+  IMAGE_NAME: ${{ vars.DOCKERHUB_USERNAME }}/github-actions-capstone
+  CONTAINER_NAME: capstone-health-check
+
 jobs:
   health-check:
+    name: Docker Health Check
     runs-on: ubuntu-latest
 
     steps:
       - name: Pull latest Docker image
-        env:
-          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/github-actions-capstone:latest
-        run: docker pull "$IMAGE"
+        run: docker pull "${IMAGE_NAME}:latest"
 
-      - name: Start container
-        env:
-          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/github-actions-capstone:latest
+      - name: Run container in detached mode
         run: |
           docker run -d \
-            --name health-app \
+            --name "$CONTAINER_NAME" \
             -p 3000:3000 \
-            "$IMAGE"
+            "${IMAGE_NAME}:latest"
 
-      - name: Check application health
+      - name: Wait and check application health
         id: health
         run: |
           sleep 5
 
-          if curl --fail --retry 5 \
+          if curl --fail \
+            --retry 5 \
             --retry-connrefused \
             --retry-delay 2 \
             http://localhost:3000/health; then
 
             echo "status=PASSED" >> "$GITHUB_OUTPUT"
-            echo "Health check passed!"
+            echo "Application health check passed."
 
           else
             echo "status=FAILED" >> "$GITHUB_OUTPUT"
-            echo "Health check failed!"
+            echo "Application health check failed."
             exit 1
           fi
 
-      - name: Generate Health Check Report
+      - name: Stop and remove container
+        if: always()
+        run: |
+          docker stop "$CONTAINER_NAME" || true
+          docker rm "$CONTAINER_NAME" || true
+
+      - name: Create Health Check Summary
         if: always()
         env:
           STATUS: ${{ steps.health.outputs.status }}
         run: |
           echo "## Health Check Report" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Image: github-actions-capstone:latest" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Status: ${STATUS:-NOT COMPLETED}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: ${IMAGE_NAME}:latest" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: ${STATUS:-FAILED}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Time: $(date)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Stop and Remove Container
-        if: always()
-        run: |
-          docker stop health-app || true
-          docker rm health-app || true
-
