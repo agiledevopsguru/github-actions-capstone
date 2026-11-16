@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-test:
-    uses: ./.github/workflows/reusable-build-test.yml
+    uses: ./.github/workflows/reusable-build-test-49.yml
     with:
       node_version: '22'
       run_tests: true
