@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   docker:
@@ -67,12 +68,18 @@ jobs:
 
       - name: Scan Docker Image for Vulnerabilities
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
-        # uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ inputs.image_name }}:${{ inputs.tag }}
-          format: table
+          format: sarif
+          output: trivy-results.sarif
           severity: CRITICAL,HIGH
           exit-code: '1'
+
+      - name: Upload Trivy Scan Results to GitHub Security
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
+        with:
+          sarif_file: trivy-results.sarif
 
       - name: Login to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
