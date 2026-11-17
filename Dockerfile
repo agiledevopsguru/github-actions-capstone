@@ -1,6 +1,10 @@
+
 FROM node:22-alpine
 
-# Update bundled npm to receive patched dependencies
+# Upgrade Alpine packages, including zlib security fixes
+RUN apk update && apk upgrade --no-cache
+
+# Install latest npm release
 RUN npm install --global npm@latest
 
 WORKDIR /app
@@ -14,3 +18,4 @@ COPY app.js ./
 EXPOSE 3000
 
 CMD ["npm", "start"]
+
